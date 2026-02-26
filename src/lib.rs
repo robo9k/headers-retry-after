@@ -155,3 +155,7 @@ mod tests {
     test_retry_after_datetime!(date_decode_rfc850, "Sunday, 06-Nov-94 08:49:37 GMT");
     test_retry_after_datetime!(date_decode_asctime, "Sun Nov  6 08:49:37 1994");
 }
+
+#[cfg(doctest)]
+#[doc=include_str!("../README-crate.md")]
+mod readme {}
