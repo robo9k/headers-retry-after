@@ -2,7 +2,7 @@
 //!
 //! The [`headers` crate](https://crates.io/crates/headers) contains a [`Retry-After`](https://docs.rs/headers::%22RetryAfter%22)
 //! [header](https://docs.rs/headers::%22Header%22) [RFC 7231](https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.3) implementation,
-//! but at the time of creating this crate here, `headers::RetryAfter` is not accessible,
+//! but at the time of creating this crate here, v0.4.1 `headers::RetryAfter` is not accessible,
 //! i.e. you can not read it as a delay or date value, only write.
 //!
 //! This crate here contains its own, accessible [`Retry-After` RFC 7231 header implementation](RetryAfter),

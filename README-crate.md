@@ -26,8 +26,8 @@ fn example() -> Result<(), Box<dyn std::error::Error>> {
 
 # MSRV
 
-Same as `headers@0.4.1`, i.e. Rust 1.56
+Same as [`headers@0.4.1`](https://crates.io/crates/headers/0.4.1), i.e. Rust 1.56
 
 # License
 
-Same as `headers@0.4.1`, i.e. MIT only
+Same as [`headers@0.4.1`](https://crates.io/crates/headers/0.4.1), i.e. MIT only
