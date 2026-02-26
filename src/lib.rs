@@ -9,6 +9,8 @@
 //! using the same [`httpdate` crate](https://crates.io/crates/httpdate) as `headers::RetryAfter`.
 #![deny(unsafe_code)]
 
+use headers_core::{Header, HeaderName, HeaderValue};
+use std::convert::{TryFrom, TryInto};
 use std::time::{Duration, SystemTime};
 
 /// The `Retry-After` header.
@@ -24,10 +26,9 @@ use std::time::{Duration, SystemTime};
 /// # Examples
 /// ```rust
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// # use headers_core::header::HeaderMap;
-/// # use headers_core::header::RETRY_AFTER;
-/// # use headers_retry_after::RetryAfter;
-/// # use headers::HeaderMapExt as _;
+/// use headers::{HeaderMap, HeaderMapExt as _};
+/// use headers_retry_after::RetryAfter;
+/// use http::header::RETRY_AFTER;
 /// use std::time::{Duration, SystemTime};
 ///
 /// let delay = RetryAfter::delay(Duration::from_secs(300));
@@ -65,46 +66,84 @@ impl RetryAfter {
     }
 }
 
-impl headers_core::Header for RetryAfter {
-    fn name() -> &'static headers_core::HeaderName {
+/// Error for `RetryAfter::try_from(header_value)`
+#[derive(Debug)]
+pub struct ParseHeaderValueError(());
+
+impl std::fmt::Display for ParseHeaderValueError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "can not parse parse header value")
+    }
+}
+
+impl std::error::Error for ParseHeaderValueError {}
+
+impl TryFrom<&HeaderValue> for RetryAfter {
+    type Error = ParseHeaderValueError;
+
+    fn try_from(value: &HeaderValue) -> Result<Self, Self::Error> {
+        let value =
+            std::str::from_utf8(value.as_bytes()).map_err(|_e| ParseHeaderValueError(()))?;
+
+        if let Ok(seconds) = value.parse::<u64>() {
+            let dur = Duration::from_secs(seconds);
+            return Ok(Self::delay(dur));
+        }
+
+        let time = httpdate::parse_http_date(value).map_err(|_e| ParseHeaderValueError(()))?;
+        Ok(Self::date(time))
+    }
+}
+
+impl TryFrom<HeaderValue> for RetryAfter {
+    type Error = ParseHeaderValueError;
+
+    fn try_from(value: HeaderValue) -> Result<Self, Self::Error> {
+        TryFrom::try_from(&value)
+    }
+}
+
+impl From<&RetryAfter> for HeaderValue {
+    fn from(value: &RetryAfter) -> Self {
+        match value {
+            RetryAfter::Date(time) => {
+                let s = httpdate::fmt_http_date(*time);
+                HeaderValue::from_maybe_shared(s).expect("HTTP date always is a valid value")
+            }
+            RetryAfter::Delay(ref dur) => dur.as_secs().into(),
+        }
+    }
+}
+
+impl From<RetryAfter> for HeaderValue {
+    fn from(value: RetryAfter) -> Self {
+        From::from(&value)
+    }
+}
+
+impl Header for RetryAfter {
+    fn name() -> &'static HeaderName {
         &headers_core::header::RETRY_AFTER
     }
 
     fn decode<'i, I>(values: &mut I) -> Result<Self, headers_core::Error>
     where
         Self: Sized,
-        I: Iterator<Item = &'i headers_core::HeaderValue>,
+        I: Iterator<Item = &'i HeaderValue>,
     {
-        values
-            .next()
-            .and_then(|val| {
-                let val = std::str::from_utf8(val.as_bytes()).ok()?;
-
-                if let Ok(seconds) = val.parse::<u64>() {
-                    let dur = Duration::from_secs(seconds);
-                    return Some(Self::delay(dur));
-                }
-
-                let time = httpdate::parse_http_date(val).ok()?;
-                Some(Self::date(time))
-            })
-            .ok_or_else(headers_core::Error::invalid)
+        if let Some(value) = values.next() {
+            return value
+                .try_into()
+                .map_err(|_e| headers_core::Error::invalid());
+        }
+        Err(headers_core::Error::invalid())
     }
 
     fn encode<E>(&self, values: &mut E)
     where
-        E: Extend<headers_core::HeaderValue>,
+        E: Extend<HeaderValue>,
     {
-        let value = match self {
-            Self::Date(time) => {
-                let s = httpdate::fmt_http_date(*time);
-                headers_core::HeaderValue::from_maybe_shared(s)
-                    .expect("HTTP date always is a valid value")
-            }
-            Self::Delay(ref dur) => dur.as_secs().into(),
-        };
-
-        values.extend(::std::iter::once(value));
+        values.extend(std::iter::once(self.into()));
     }
 }
 
@@ -126,7 +165,7 @@ mod tests {
 
     fn test_decode<T: headers::Header>(values: &[&str]) -> Option<T> {
         use headers::HeaderMapExt;
-        let mut map = headers_core::header::HeaderMap::new();
+        let mut map = http::header::HeaderMap::new();
         for val in values {
             map.append(T::name(), val.parse().unwrap());
         }
